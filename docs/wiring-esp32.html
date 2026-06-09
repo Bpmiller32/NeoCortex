@@ -1,0 +1,186 @@
+<!DOCTYPE html>
+<!-- Full wiring guide for the PsTas controller module. -->
+<!-- Open this in a browser. Use the browser's Print to PDF if you want a paper copy. -->
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>PsTas Full Wiring Guide</title>
+<style>
+  /* Keep the page simple and easy to read at the workbench. */
+  body { font-family: system-ui, sans-serif; max-width: 980px; margin: 24px auto; padding: 0 16px; color: #111; }
+  h1, h2 { border-bottom: 2px solid #ddd; padding-bottom: 4px; }
+  table { border-collapse: collapse; margin: 12px 0; font-size: 14px; }
+  th, td { border: 1px solid #ccc; padding: 6px 10px; text-align: left; }
+  th { background: #f3f3f3; }
+  pre { background: #f7f7f7; border: 1px solid #ddd; padding: 14px; overflow-x: auto; font-size: 13px; }
+  .note { background: #fff8e1; border-left: 4px solid #f0c000; padding: 8px 12px; margin: 12px 0; }
+  .warn { background: #ffebee; border-left: 4px solid #e53935; padding: 8px 12px; margin: 12px 0; }
+  .ok { background: #e8f5e9; border-left: 4px solid #43a047; padding: 8px 12px; margin: 12px 0; }
+</style>
+</head>
+<body>
+
+<h1>PsTas Full Wiring Guide</h1>
+<p>This wires an <b>Unexpected Maker TinyS2</b> (ESP32-S2) to a <b>DualShock 4</b>
+through <b>BOJACK PC817C</b> optocouplers. Driving a TinyS2 pin HIGH turns its
+optocoupler on, which presses the button. Driving it LOW releases the button.</p>
+
+<h2>Parts you need (exact counts)</h2>
+<table>
+  <tr><th>Part</th><th>Count</th><th>Why</th></tr>
+  <tr><td>BOJACK PC817C optocoupler</td><td><b>8</b></td><td>One chip per button. Each PC817C is a single channel.</td></tr>
+  <tr><td>220 ohm resistor (optocoupler)</td><td><b>8</b></td><td>One per optocoupler LED, between the GPIO pin and the chip.</td></tr>
+  <tr><td>Indicator LED (optional)</td><td>8</td><td>Lights when a button is pressed, so you can see the bot working.</td></tr>
+  <tr><td>220 ohm resistor (indicator LED, optional)</td><td>8</td><td>One per indicator LED.</td></tr>
+  <tr><td>Unexpected Maker TinyS2</td><td>1</td><td>Drives all eight channels.</td></tr>
+  <tr><td>DualShock 4</td><td>1</td><td>The real controller the PS5 trusts.</td></tr>
+</table>
+
+<div class="ok">
+  Each PC817C handles ONE button. Eight buttons means eight chips. There is no
+  way to share a chip between two buttons.
+</div>
+
+<h2>The two ground rails (read this first)</h2>
+<p>There are two separate "ground" lines in this build, and they must NEVER touch
+each other. Keeping them apart is the entire reason we use optocouplers.</p>
+<ul>
+  <li><b>TinyS2 GND rail</b> — the TinyS2's own GND. Every PC817 <b>pin 2 (cathode)</b>
+      and every indicator LED's short leg connect here.</li>
+  <li><b>DS4 common rail</b> — the controller's own button common. Every PC817
+      <b>pin 3 (emitter)</b> connects here.</li>
+</ul>
+<div class="warn">
+  Do NOT connect the TinyS2 GND rail to the DS4 common rail. They stay fully
+  separate. If you join them, you defeat the isolation and can confuse or damage
+  the controller.
+</div>
+
+<h2>PC817C pinout</h2>
+<p>The notch or dot on the chip marks pin 1. With the notch up, pins go 1-2 down
+the left and 4-3 down the right.</p>
+<pre>
+        +--U--+
+  pin 1 |o    | pin 4      pin 1 = anode    (input LED +, from the resistor)
+  (A)   |     | (C)        pin 2 = cathode  (input LED -, to TinyS2 GND rail)
+        |     |            pin 3 = emitter  (output, to DS4 common rail)
+  pin 2 |     | pin 3      pin 4 = collector(output, to the DS4 button pad)
+  (K)   +-----+ (E)
+</pre>
+
+<h2>One channel, in detail</h2>
+<p>This is the pattern. The full circuit below is just this same thing eight
+times, once per button.</p>
+<pre>
+   TinyS2                         PC817C #1                    DualShock 4
+   ------                         ---------                    -----------
+
+   GPIO5 ---[220 ohm]---&gt;|---- pin1 (A)
+                        LED
+                              pin2 (K) ----------&gt; TinyS2 GND rail
+
+                              pin4 (C) ----------&gt; DS4 "UP" signal pad
+                              pin3 (E) ----------&gt; DS4 common rail
+
+   Optional indicator LED, off the same GPIO pin:
+   GPIO5 ---[220 ohm]---&gt;|----&gt; LED long leg, then short leg ----&gt; TinyS2 GND rail
+</pre>
+
+<h2>Full circuit, all 8 buttons</h2>
+<p>Every row is one complete channel. Build them one at a time and tick each row
+off. The TinyS2 GND rail and the DS4 common rail are shared by all eight, but
+they stay separate from each other.</p>
+<table>
+  <tr>
+    <th>#</th><th>Button</th><th>TinyS2 GPIO</th><th>Chip</th>
+    <th>pin 1 (anode)</th><th>pin 2 (cathode)</th>
+    <th>pin 4 (collector)</th><th>pin 3 (emitter)</th>
+  </tr>
+  <tr><td>1</td><td>Up</td><td>GPIO5</td><td>PC817 #1</td>
+      <td>220&#8486; from GPIO5</td><td>TinyS2 GND rail</td><td>DS4 Up pad</td><td>DS4 common rail</td></tr>
+  <tr><td>2</td><td>Down</td><td>GPIO6</td><td>PC817 #2</td>
+      <td>220&#8486; from GPIO6</td><td>TinyS2 GND rail</td><td>DS4 Down pad</td><td>DS4 common rail</td></tr>
+  <tr><td>3</td><td>Left</td><td>GPIO7</td><td>PC817 #3</td>
+      <td>220&#8486; from GPIO7</td><td>TinyS2 GND rail</td><td>DS4 Left pad</td><td>DS4 common rail</td></tr>
+  <tr><td>4</td><td>Right</td><td>GPIO8</td><td>PC817 #4</td>
+      <td>220&#8486; from GPIO8</td><td>TinyS2 GND rail</td><td>DS4 Right pad</td><td>DS4 common rail</td></tr>
+  <tr><td>5</td><td>Cross (X / jump)</td><td>GPIO9</td><td>PC817 #5</td>
+      <td>220&#8486; from GPIO9</td><td>TinyS2 GND rail</td><td>DS4 Cross pad</td><td>DS4 common rail</td></tr>
+  <tr><td>6</td><td>Circle</td><td>GPIO14</td><td>PC817 #6</td>
+      <td>220&#8486; from GPIO14</td><td>TinyS2 GND rail</td><td>DS4 Circle pad</td><td>DS4 common rail</td></tr>
+  <tr><td>7</td><td>Square</td><td>GPIO17</td><td>PC817 #7</td>
+      <td>220&#8486; from GPIO17</td><td>TinyS2 GND rail</td><td>DS4 Square pad</td><td>DS4 common rail</td></tr>
+  <tr><td>8</td><td>Triangle</td><td>GPIO18</td><td>PC817 #8</td>
+      <td>220&#8486; from GPIO18</td><td>TinyS2 GND rail</td><td>DS4 Triangle pad</td><td>DS4 common rail</td></tr>
+</table>
+
+<h2>Full circuit diagram</h2>
+<p>The left column is the TinyS2 GND rail. The right column is the DS4 common
+rail. They never connect.</p>
+<pre>
+  TinyS2 GND rail                                              DS4 common rail
+  (all pin 2 here)                                             (all pin 3 here)
+       |                                                              |
+       |    GPIO5  --[220]--&gt;|-- #1 --&gt; pin4 --&gt; DS4 Up pad           |
+       +---- pin2 #1                              pin3 #1 ------------+
+       |                                                              |
+       |    GPIO6  --[220]--&gt;|-- #2 --&gt; pin4 --&gt; DS4 Down pad         |
+       +---- pin2 #2                              pin3 #2 ------------+
+       |                                                              |
+       |    GPIO7  --[220]--&gt;|-- #3 --&gt; pin4 --&gt; DS4 Left pad         |
+       +---- pin2 #3                              pin3 #3 ------------+
+       |                                                              |
+       |    GPIO8  --[220]--&gt;|-- #4 --&gt; pin4 --&gt; DS4 Right pad        |
+       +---- pin2 #4                              pin3 #4 ------------+
+       |                                                              |
+       |    GPIO9  --[220]--&gt;|-- #5 --&gt; pin4 --&gt; DS4 Cross pad        |
+       +---- pin2 #5                              pin3 #5 ------------+
+       |                                                              |
+       |    GPIO14 --[220]--&gt;|-- #6 --&gt; pin4 --&gt; DS4 Circle pad       |
+       +---- pin2 #6                              pin3 #6 ------------+
+       |                                                              |
+       |    GPIO17 --[220]--&gt;|-- #7 --&gt; pin4 --&gt; DS4 Square pad       |
+       +---- pin2 #7                              pin3 #7 ------------+
+       |                                                              |
+       |    GPIO18 --[220]--&gt;|-- #8 --&gt; pin4 --&gt; DS4 Triangle pad     |
+       +---- pin2 #8                              pin3 #8 ------------+
+       |                                                              |
+   TinyS2 GND                                              DS4 button common
+   (powered by USB-C)                                      (powered by DS4 USB)
+</pre>
+
+<div class="note">
+  Find the DS4 common rail with a multimeter before soldering. With the
+  controller off, one side of every button is usually tied together (the common
+  rail); the other side is that button's own signal pad. The collector (pin 4)
+  goes to the signal pad; the emitter (pin 3) goes to the common rail.
+</div>
+
+<div class="note">
+  Quick way to find the common rail: in continuity mode, with the controller
+  off, put one probe on the battery negative terminal and touch the other to
+  each button pad. The pad that beeps (reads near zero ohms) is the ground side,
+  which is the common rail. Check two or three buttons. If every button has one
+  pad continuous to battery ground, then battery ground IS the shared emitter
+  rail, and you can run one wire from there to all eight emitters. If no pad
+  connects to battery ground, the buttons are matrix scanned and we need a
+  different approach, so stop and check before soldering.
+</div>
+
+<h2>Optional indicator LEDs</h2>
+<p>For each button, add a second branch off the same GPIO pin. This is fully
+independent of the optocoupler and only gives you a light.</p>
+<pre>
+   GPIO pin ---[220 ohm]---&gt;|---- LED long leg (anode)
+                                  LED short leg (cathode) ----&gt; TinyS2 GND rail
+</pre>
+<p>Use the same 220 ohm value. Each pin then sources about 16 mA when pressed,
+which the TinyS2 handles easily.</p>
+
+<h2>Power and isolation</h2>
+<p>The TinyS2 is powered over its own USB-C cable. The PC817 output side (pins 3
+and 4) is powered only by the DS4. The two sides share no wires. Leave the DS4
+powered normally over its own USB; we only tap the button contacts.</p>
+
+</body>
+</html>
